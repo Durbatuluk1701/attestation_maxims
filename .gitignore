@@ -46,3 +46,17 @@ time-of-build-pretty.log
 
 # dune related files
 _build/
+
+# Latex stuff
+*.aux
+*.bbl
+*.blg
+*.log
+*.nav
+*.out
+*.snm
+*.toc
+*.vrb
+*.fdb_latexmk
+*.fls
+*.synctex.gz

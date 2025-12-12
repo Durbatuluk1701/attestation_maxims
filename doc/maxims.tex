@@ -1,0 +1,93 @@
+
+\newcommand{\constraininteraction}{Constrain possible interactions so
+  attested properties depend only on limited, predictable, measurable
+  parts of the system.}
+
+\newcommand{\shortlived}{Short-lived, single-input processes avoid the
+  need for process runtime remeasurement that long-lived services
+  require if they handle untrusted inputs.}
+
+\newcommand{\resisttransitorycorruption}{Attestation should be
+  independent of secrets that could be disclosed by transient
+  corruptions, lest transient corruptions cause permanent attestation
+  failure.}
+
+\newcommand{\displayboottrait}{Each attestation must display
+  characteristics showing that it originated from our
+  %
+  % intended
+  % 
+  % Jim suggested this improvement:  
+  uncorrupted
+  %
+  attestation software, running under a trustworthy system boot.}
+
+\newcommand{\ascenddependencies}{An acyclic dependency relation
+  enables us to measure lower layers before components depending on
+  them. Only very recent corruptions of underlying components can then
+  undermine attestations, meaning corruptions during the course of
+  attestation.}
+
+\iffalse{
+  % An old version, though not as old as the one below.  This one
+  % from July 2025.  
+  \newcommand{\constraininteraction}{Constrain possible interactions so
+    attested properties depend only on limited, predictable, measurable
+    parts of the system.}
+
+  \newcommand{\shortlived}{Short-lived, single-input processes avoid the
+    need for process runtime remeasurement that long-lived services
+    require if they handle untrusted inputs.}
+
+  \newcommand{\resisttransitorycorruption}{Attestation should be
+    independent of secrets that could be disclosed by transient
+    corruptions, lest transient corruptions cause permanent attestation
+    failure.}
+
+  \newcommand{\displayboottrait}{Each attestation must display
+    characteristics showing that it originated from our intended
+    attestation software, running under a trustworthy system boot.}
+
+  \newcommand{\ascenddependencies}{An acyclic dependency relation
+    enables us to measure lower layers before components depending on
+    them. Only very recent corruptions of underlying components can then
+    undermine attestations, meaning corruptions during the course of
+    attestation.}
+}
+\fi
+
+
+
+\iffalse{  %% An old version!  
+  \newcommand{\constraininteraction}{Constrain possible interactions so
+    attested properties depend only on limited, predictable, measurable
+    parts of the system.}
+
+  \newcommand{\shortlived}{Short-lived, single-input processes avoid the
+    need for process runtime remeasurement that long-lived services
+    require if they handle untrusted inputs.}
+
+  \newcommand{\resisttransitorycorruption}{Attestation should be
+    independent of secrets that could be disclosed by transient
+    corruptions, lest transient corruptions cause permanent attestation
+    failure.}
+
+  \newcommand{\displayboottrait}{Each attestation must carry some trait
+    showing that it originated from our intended software, running under
+    a trustworthy system boot.}
+
+  \newcommand{\ascenddependencies}{An acyclic dependency relation
+    enables us to measure lower layers before components depending on
+    them.
+
+    Only very recent corruptions of underlying components can then
+    undermine attestations, meaning corruptions during the course of
+    attestation.}
+}\fi
+
+
+%%% Local Variables:
+%%% mode: LaTeX
+%%% TeX-master: "cds-demo25"
+%%% End:
+

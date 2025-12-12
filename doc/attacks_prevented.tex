@@ -1,0 +1,112 @@
+\section{Attacks Prevented by Following the Maxims}
+
+Why should one follow the attestation design maxims prescribed by this paper?
+Each maxim is specifically designed to prevent certain classes of attacks on attestation systems.
+Importantly, we do not claim that \emph{all} attacks are prevented by following these maxims; rather, each maxim prevents attacks that would be viable if the maxim were not followed.
+
+We must start by abstractly defining the system that we are protecting:
+\begin{definition}[Measurable System]
+  A \emph{measurable system} is a system made of the following:
+  \begin{itemize}
+    \item A set of \emph{components} $C$
+    \item A set of measurers $M \subseteq C$
+    \item A state space $S$: each component $c \in C$ has a state $s_c \in S$
+          The possible states that a component can be are:
+          \begin{itemize}
+            \item \emph{Safe}: the component is operating correctly and as intended.
+            \item \emph{Corrupt $L$}: the component is operating incorrectly or maliciously by some corruption with label $L$.
+            \item \emph{Infected $L$}: the component is operating correctly, and has been compromised by a past corruption with label $L$.
+          \end{itemize}
+    \item A dependency relation $D \subseteq C \times C$ where $(c_1, c_2) \in D$ means that component $c_1$ depends on component $c_2$.
+          Intuitively, this means that if $c_2$ is corrupt, then $c_1$ may also be corrupt.
+  \end{itemize}
+
+\end{definition}
+
+We them define the runtime of the system as follows:
+There is a sequence of events $E = [e_1, e_2, \ldots, e_n]$ that occur in the system.
+
+\newcommand{\Boot}{\ensuremath{\texttt{Boot}}}
+\newcommand{\Start}{\ensuremath{\texttt{Start}}}
+\newcommand{\End}{\ensuremath{\texttt{End}}}
+\newcommand{\Launch}{\ensuremath{\texttt{Launch}}}
+\newcommand{\Meas}{\ensuremath{\texttt{Meas}}}
+\newcommand{\Corrupt}{\ensuremath{\texttt{Corrupt}}}
+\newcommand{\Repair}{\ensuremath{\texttt{Repair}}}
+\newcommand{\Infect}{\ensuremath{\texttt{Infect}}}
+\newcommand{\Use}{\ensuremath{\texttt{Use}}}
+
+Each event $e_i$ is one of the following:
+\begin{itemize}
+  \item A \emph{boot event} $\Boot$ where all components are initialized. \emph{Notably}, the boot event will always be $e_1$.
+  \item A \emph{protocol start event} $\Start$ where the attestation protocol begins.
+  \item A \emph{protocol end event} $\End$ where the attestation protocol ends.
+  \item A \emph{launch event} $\Launch(c)$ where component $c \in C$ is launched.
+  \item A \emph{measurement event} $\Meas(c)$ where measurer $m \in M$ measures component $c \in C$.
+  \item A \emph{corruption event} $\Corrupt(c, L)$ where component $c \in C$ is corrupted with label $L$.
+  \item A \emph{repair event} $\Repair(c)$ where component $c \in C$ is repaired to the safe state.
+  \item An \emph{infection event} $\Infect(c_1, c_2, L)$ where component $c_2 \in C$ is infected with by component $c_1$ with label $L$.
+  \item A \emph{use event} where all of the components are used for their intended purpose and the security critical operations are performed. \emph{Notably}, the use event will always be the last event: $e_n$.
+\end{itemize}
+
+We will consider \emph{corruption, repair, and infection events} to be adversarial events that are performed by an attacker trying to compromise the system.
+\emph{Protocol start,end, and measurement events} are performed by the attestation system to measure the state of components.
+\emph{Boot, launch, and use events} are benign system events that occur naturally in the system.
+
+We denote event widths in the standards mathematical notation for an interval.
+
+\begin{definition}[Timely Attack]
+  A \emph{timely attack} is an attack where the attacker performs a corruption event $\Corrupt(c, L)$ on component $c$ after the measurement event $\Meas(c)$ where component $c$ is measured, but before the $\Use$ event.
+
+  Thus, any timely attack must fall within the interval $(\Meas(c), \Use]$.
+  Intuitively, this is because a component that is corrupted \emph{before} the measurement event will be detected by the measurement event, and a component that is corrupted \emph{after} the use event does not affect the security of the system during its use.
+\end{definition}
+
+We consider \emph{timely attacks} to be acceptable attacks that cannot be prevented by any attestation system, as they occur after the measurement has been performed.
+
+As a side note however, timely attacks can be arbitrarily difficult to perform in practice, given the interval of attestations that occur and the time between attestation and use. Overall, this is the well-known \emph{time-of-check to time-of-use} (TOCTOU) problem; to which we leave solutions for other work.
+
+Ultimately, we then define the goal of our attestation system as follows:
+\begin{definition}[Attestation Goal]
+  The goal of the attestation system is to detect all attacks that are not timely attacks (i.e., all attacks that occur before the measurement event) or deep attacks (i.e. attacks that compromise a root of trust).
+\end{definition}
+
+We define detection of an attack as follows:
+\begin{definition}[Attack Detection]
+  An attack on component $c$ with label $L$ is detected if there exists a measurement event $\Meas(c)$ that occurs after the most recent corruption event $\Corrupt(c, L)$ on component $c$ with label $L$, and before the use event $\Use$.
+
+  Essentially, the following trace must exist:
+  $$\ldots, \Corrupt(c, L) ++ others ++ \Meas(c), \ldots, \End, \ldots \Use$$
+  Where $Rep(c) \not\in others$ (i.e., there is no repair event on component $c$ between the corruption and measurement events).
+\end{definition}
+
+\newcommand{\todo}[1]{\textbf{TODO: #1}}
+
+\todo{Add the events semantics here}
+
+We can now define how the maxims prevent attacks on the system.
+
+\remax{maxim:constrain:interaction}{\constraininteraction}
+
+The maxim of constraining interaction prevents attacks where a measurer's output depends on unmeasured or unpredictable components.
+
+For example:
+\textbf{If} some $c_i$ exists such that the overall system security goal $G$ depends on the state of $c_i$, but $c_i$ is not measured by any measurer $m \in M$ during the attestation protocol,
+\textbf{then} an attacker can perform a corruption event $\Corrupt(c_i, L)$ on component $c_i$ before the measurement event $\Meas(c_i)$ (as $\Meas(c_i)$ does not exist in this scenario) thus violating the attestation goal, as the attack is not detected.
+\todo{Define G formally above}
+
+Concretely, the following trace would exist:
+$$\ldots, \Corrupt(c_i, L) ++ others ++ \End, \ldots \Use$$
+Where $Meas(c_i) \not\in others$ (i.e., there is no measurement event on component $c_i$).
+
+Ultimately, this expands the attack window from $(\Meas(c_i), \Use]$ to $(\Launch(c_i), \Use]$, allowing the attacker to perform the corruption at any time after the component is launched.
+\todo{Go into how Launch must proceed Meas}
+
+
+\remax{maxim:short:lived}{\shortlived}
+
+\remax{maxim:resist:transitory:corruption}{\resisttransitorycorruption}
+
+\remax{maxim:display:boot:trait}{\displayboottrait}
+
+\remax{maxim:ascend:dependencies}{\ascenddependencies}
