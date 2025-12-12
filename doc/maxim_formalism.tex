@@ -1,9 +1,51 @@
-%
-\documentclass[sigconf]{acmart}
+\documentclass[runningheads]{llncs}
+
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage{amsmath}
+\usepackage{hyperref}
+\usepackage{cleveref}
 
 \title{The Attestation Maxims Formalism}
 
+% Load the textual definitions of the maxims so their macros are
+% available throughout the document.  `maxims.tex` defines the short
+% natural-language versions of the maxims used below.
+
+\newcommand{\remax}[2]{\par\smallskip\noindent\textbf{\autoref{#1}.} {\em
+    #2}{\hfill // \par\smallskip}}
+
+\input{maxims}
+
 \begin{document}
+\begin{abstract}
+  This short document collects the formalism behind the attestation
+  design maxims and explains the classes of attacks the maxims are
+  intended to prevent. The human-readable maxim statements are kept in
+  `maxims.tex`; the technical formalism and examples appear below.
+\end{abstract}
+
 \maketitle
+
+\section{Overview}
+
+The following pages present the formal model we use for attestation
+analysis and explain how each maxim maps to classes of attacks.
+Macros providing the human-readable maxim text are defined by
+`maxims.tex`, which is intentionally loaded before the document body so
+that those macros may be referenced from the included fragments.
+
+% Insert the main technical section describing attacks and how the
+% maxims prevent them.  This file depends on macros from `maxims.tex`.
+\input{attacks_prevented}
+
+\section{Concluding Remarks}
+
+The maxims are deliberately concise design principles. The formalism
+above provides a minimal model for reasoning about when an attestation
+is likely to detect an attack and when an attack falls into the
+time-of-check-to-time-of-use window.  Future work may expand the
+event semantics and provide automated proofs using the Coq development
+contained in the `theories/` directory.
 
 \end{document}
