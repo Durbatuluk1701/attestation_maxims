@@ -14,7 +14,7 @@ Section Sets.
   
   Lemma length_set_add : forall (s : set A) a,
     List.length (set_add dec_eq a s) =
-      match set_In_dec dec_eq a s with
+      match in_dec dec_eq a s with
       | left _ => List.length s
       | right _ => S (List.length s)
       end.
@@ -51,8 +51,8 @@ Section Sets.
     repeat (erewrite set_add_iff in *); ff.
   Qed.
 
-  Lemma not_set_In_add : forall {A} `{DecEq A} s (a : A),
-    ~ set_In a s ->
+  Lemma not_In_set_add : forall {A} `{DecEq A} s (a : A),
+    ~ In a s ->
     List.length (set_add dec_eq a s) = S (List.length s).
   Proof.
     induction s; ff.
@@ -72,7 +72,7 @@ Section Sets.
   Lemma set_in_fold_left_union : forall (f : A -> set A) (lst : list A) (x : A) (acc : set A),
     In x (set_fold_left (fun acc a => set_union dec_eq acc (f a)) lst acc) <->
     (* either in acc to start or in f a*)
-    (In x acc) \/ (exists a, In a lst /\ set_In x (f a)).
+    (In x acc) \/ (exists a, In a lst /\ In x (f a)).
   Proof.
     split.
     - generalizeEverythingElse lst.
@@ -103,7 +103,7 @@ Section Sets.
     | 0 => fun Hm => nil
     | S _ =>
       fun Hm =>
-      match (set_In_dec (DecEq.dec_eq) c seen) with
+      match (in_dec (DecEq.dec_eq) c seen) with
       | left _ => nil
       | right _ =>
         let parents := get_all_one_step_reverse rel c in
@@ -114,39 +114,36 @@ Section Sets.
       end
     end eq_refl.
   Proof.
-    erewrite not_set_In_add; ff l.
+    erewrite not_In_set_add; ff l.
   Defined.
 
   Definition get_multi_step_reverse (c : A) (d : bin_rel) : set A :=
     get_multi_step_reverse' c d nil.
 
-  Definition subset {A} `{DecEq A} (s1 s2 : set A) : Prop :=
-    forall x, set_In x s1 -> set_In x s2.
-
-  Theorem seen_set_always_subset : forall n c rel seen,
+  Theorem seen_set_always_incl : forall n c rel seen,
     List.length (all_in_rel rel) - List.length seen <= n ->
-    subset seen (all_in_rel rel) ->
+    incl seen (all_in_rel rel) ->
     In c (all_in_rel rel) ->
     forall x,
-    set_In x (get_multi_step_reverse' c rel seen) ->
-    subset (x :: seen) (all_in_rel rel).
+    In x (get_multi_step_reverse' c rel seen) ->
+    incl (x :: seen) (all_in_rel rel).
   Proof.
-    unfold subset.
+    unfold incl.
     induction n; ff.
     - ltac1:(simp get_multi_step_reverse' in *); ff l.
     - ltac1:(simp get_multi_step_reverse' in *); ff l.
       erewrite set_in_fold_left_union in *; ff l;
       elim_all_contras; ff l.
       * eapply in_get_all_one_step_reverse_impl_in_all_in_rel; ff.
-      * destruct (set_In_dec dec_eq x0 seen); ff.
+      * destruct (in_dec dec_eq a seen); ff.
         eapply IHn in H3; ff l.
         + erewrite length_set_add; ff l.
         + erewrite set_add_iff in *; ff.
         + eapply in_get_all_one_step_reverse_impl_in_all_in_rel; ff.
   Qed.
 
-  Lemma set_In_add_split : forall (c c' : A) s,
-    set_In c (set_add dec_eq c' s) -> c = c' \/ set_In c s.
+  Lemma in_add_split : forall (c c' : A) s,
+    In c (set_add dec_eq c' s) -> c = c' \/ In c s.
   Proof.
     induction s; ff.
     apply IHs in H0; ff.
@@ -299,26 +296,59 @@ Section Sets.
       erewrite set_add_iff; ff.
   Admitted.
 
+  Lemma in_one_step_impl_in_targ : forall c c' E,
+    In c' (get_all_one_step_reverse E c) ->
+    In c (all_in_rel E) /\ In c' (all_in_rel E).
+  Proof.
+    induction E; ff.
+    - repeat (erewrite set_add_iff in *); ff.
+      split.
+      * ff.
+      * eapply IHE in H0; ff.
+    - repeat (erewrite set_add_iff in *); ff.
+      eapply IHE in H; ff.
+      bool_logic.
+  Qed.
+
+  Lemma NoDup_all_in_rel : forall E,
+    NoDup (all_in_rel E).
+  Proof.
+    induction E; ff.
+    - econstructor.
+    - eapply set_add_nodup.
+      eapply set_add_nodup.
+      ff.
+  Qed.
+
   Lemma get_one_get_multi' : forall n c c' E s,
+    NoDup s ->
     List.length (all_in_rel E) - List.length s <= n ->
+    incl s (all_in_rel E) ->
     In c' (get_all_one_step_reverse E c) ->
     ~ In c s ->
     In c' (get_multi_step_reverse' c E s).
   Proof.
+    unfold incl.
     induction n; ff.
     - ltac1:(simp get_multi_step_reverse' in *); ff l.
-      admit.
+      eapply in_one_step_impl_in_targ in H2; ff.
+      pp (NoDup_incl_length H H1).
+      assert (List.length (all_in_rel E) <= List.length s) by lia.
+      pp (@NoDup_length_incl A _ _ H H6 H1).
+      unfold incl in *.
+      ff.
     - ltac1:(simp get_multi_step_reverse' in *); ff l.
-      * repeat (erewrite length_set_add in *; ff).
-    induction E; ff l.
-    - erewrite set_add_iff in *; elim_all_contras; ff l.
-      * eapply
-        eapply expand_dep_rel_test'; ff.
-        eapply IHE; ff.
-      * eapply expand_dep_rel_test'; ff l; eapply IHE.
-    - eapply expand_dep_rel_test'; ff l; eapply IHE.
-  Admitted.
+      * eapply in_one_step_impl_in_targ in H2; ff.
+        pp (NoDup_incl_length H H1).
+        assert (List.length (all_in_rel E) <= List.length s) by lia.
+        pp (@NoDup_length_incl A _ _ H H6 H1).
+        unfold incl in *.
+        ff.
+      * erewrite set_in_fold_left_union in *; ff l.
+  Qed.
+  Print Assumptions get_one_get_multi'.
 
+  (* 
   Lemma expand_dep_rel_test : forall E,
     forall c c',
     In c (get_multi_step_reverse c' E) ->
@@ -346,7 +376,7 @@ Section Sets.
       In c'' (get_multi_step_reverse c E).
   Proof.
     induction E; ff.
-    unfold get_multi_step_reverse in *; ltac1:(simp get_multi_step_reverse' in *); ff; erewrite set_in_fold_left_union in *.
+    unfold get_multi_step_reverse in *; ltac1:(simp get_multi_step_reverse' in * ); ff; erewrite set_in_fold_left_union in *.
     - admit.
     - admit.
   Admitted.
@@ -366,7 +396,7 @@ Section Sets.
   Proof.
     induction E; ff.
     unfold get_multi_step_reverse.
-    ltac1:(simp get_multi_step_reverse' in *); ff.
+    ltac1:(simp get_multi_step_reverse' in * ); ff.
     - rewrite Nat.sub_0_r in Heqn. apply union_non_empty_len in Heqn; ff.
     - erewrite set_in_fold_left_union in *; destruct (dec_eq c'' a0); ff.
     - erewrite set_in_fold_left_union in *.
@@ -386,7 +416,7 @@ Section Sets.
     ~ (set_In c' (get_multi_step_reverse' c E (set_add dec_eq c s))).
   Proof.
     intros.
-    ltac1:(simp get_multi_step_reverse' in *); ff.
+    ltac1:(simp get_multi_step_reverse' in * ); ff.
     eapply n0.
     erewrite set_add_iff; ff.
   Qed.
@@ -400,161 +430,245 @@ Section Sets.
                   In c' (get_multi_step_reverse' c'' E (set_add dec_eq c s)))).
   Proof.
   Admitted.
+  *)
 
+  (*
+  Lemma multi_seen_irrel : forall n E s c c1 c2 cf,
+    NoDup s ->
+    List.length (all_in_rel E) - List.length s <= n ->
+    incl s (all_in_rel E) ->
+    c <> c1 ->
+    c <> c2 ->
+    In cf (get_multi_step_reverse' c E (set_add dec_eq c1 s)) ->
+    In cf (get_multi_step_reverse' c E (set_add dec_eq c2 s)).
+  Proof.
+    ltac1:(simp get_multi_step_reverse' in * ).
 
+    unfold incl.
+    induction n; ff.
+    - ltac1:(simp get_multi_step_reverse' in * ); ff l.
+      * admit.
+      * erewrite set_add_iff in *; ff.
+      * erewrite set_add_iff in *; ff; elim_all_contras; ff l.
+        erewrite set_in_fold_left_union in *; ff l.
+        destruct (in_dec dec_eq cf (get_all_one_step_reverse E c)); ff.
+        right.
+        exists x; split; ff.
+    (* - ltac1:(simp get_multi_step_reverse' in * ); ff l.
+      * 
+      erewrite set_in_fold_left_union in *; ff l.
+      Control.enter (fun () => elim_all_contras); ff l.
+      * 
+    - ltac1:(simp get_multi_step_reverse' in * ); ff l. *)
+  Admitted.
+  *)
+
+  Lemma not_in_self : forall n c E s,
+    NoDup s ->
+    List.length (all_in_rel E) - List.length s <= n ->
+    incl s (all_in_rel E) ->
+    In c s ->
+    forall c',
+    ~ (In c' (get_multi_step_reverse' c E s)).
+  Proof.
+    unfold incl.
+    induction n; ff l.
+    - ltac1:(simp get_multi_step_reverse' in * ); ff l.
+    - ltac1:(simp get_multi_step_reverse' in * ); ff l.
+  Qed.
+
+  Ltac2 Notation "incls" :=
+    try (unfold incl in *); ff l;
+    repeat (erewrite set_add_iff in *; ff);
+    repeat (find_eapply_lem_hyp in_one_step_impl_in_targ; ff);
+    repeat (erewrite set_add_iff in *; ff).
+
+  Ltac2 Notation "nodups" := repeat (eapply set_add_nodup; ff l).
 
   Lemma get_multi_step_reverse_trans : forall n c c' E s,
+    NoDup s ->
     List.length (all_in_rel E) - List.length s <= n ->
+    incl s (all_in_rel E) ->
     In c' (get_multi_step_reverse' c E s) ->
-    forall c'',
-      In c'' (get_multi_step_reverse' c' E s) ->
+    forall s' c'',
+      In c'' (get_multi_step_reverse' c' E s') ->
+      NoDup s' ->
+      incl (set_add dec_eq c s) s' ->
+      incl s' (all_in_rel E) ->
       In c'' (get_multi_step_reverse' c E s).
   Proof.
-    intros.
-    eapply get_multi_step_reverse_spec in H0.
-    eapply get_multi_step_reverse_spec in H1.
-    elim_all_contras; ff l.
-    - admit.
-    - admit.
-    - 
-    find_eapply_lem_hyp get_multi_step_reverse_spec; ff l.
-    find_eapply_lem_hyp get_multi_step_reverse_spec.
-    elim_all_contras; ff l.
-    - admit.
-    - pp (get_multi_step_reverse_spec _ _ _ H).
-    ff.
-
-
-    induction n; ff.
+    unfold incl.
+    induction n;
+    intros c c' E s HNDs HL HssE H1 s' c'' H2 HNDs' Hss'E Hsss'; ff.
     - ltac1:(simp get_multi_step_reverse' in *); ff l.
-    - ltac1:(simp get_multi_step_reverse' in *); ff l;
-      erewrite set_in_fold_left_union in *; ff l.
+    - 
+      ltac1:(simp get_multi_step_reverse' in *); ff l.
+      erewrite set_in_fold_left_union in *; ff l;
       elim_all_contras; ff l.
-      * (* both in one step *)
-        destruct (in_dec dec_eq c'' (get_all_one_step_reverse E c)); ff;
+      * destruct (in_dec dec_eq c'' (get_all_one_step_reverse E c)); ff;
         right.
         exists c'; split; ff.
         eapply get_one_get_multi'; ff l.
-        erewrite set_add_iff in *; ff.
-      * (* c' in c, c'' multi-step c' *)
-        destruct (in_dec dec_eq c'' (get_all_one_step_reverse E c)); ff;
+        + nodups.
+        + incls.
+      * destruct (in_dec dec_eq c'' (get_all_one_step_reverse E c)); ff.
         right.
-        unfold set_In in *.
-
-        admit.
-
-
-        destruct (dec_eq c c'), (dec_eq v c'), (dec_eq v c); ff.
-        ++ find_eapply_lem_hyp get_multi_step_self_nil; ff.
-        ++ 
-          exists c'; split; ff.
-          eapply IHn; ff l.
-          -- admit.
-          -- eapply get_one_get_multi'; ff l.
-              erewrite set_add_iff in *; ff.
-          -- admit.
-        ++ exists c'; split; ff.
-          eapply IHn; ff l.
-          -- admit.
-          -- eapply get_one_get_multi'; ff l.
-            erewrite set_add_iff in *; ff.
-          -- ff.  admit.
-      * (* c' multi-step c, c'' in c' *)
-        admit.
-      * (* both multi-step *)
-        admit.
-
-          erewrite set_in_fold_left_union in *; ff l.
+        exists c'.
         split.
-        
-      * assert (S n0 <= 0). {
-          erewrite <- Heqn1, <- Heqn0.
-          erewrite Nat.sub_le_mono_r; ff.
-          eapply union_non_empty_len_more_r.
+        ff.
+        eapply IHn; ff l.
+        + nodups.
+        + erewrite length_set_add; ff l.
+        + eapply get_one_get_multi'.
+          -- nodups.
+          -- incls.
+          -- incls.
+          -- ff.
+          -- ff.
+        + nodups.
+        + incls.
+        + incls.
+      * destruct (in_dec dec_eq c'' (get_all_one_step_reverse E c)); ff.
+        right.
+        assert (Hinvs : ~ In v s). {
+          intros HC.
+          eapply (not_in_self _ v E (set_add dec_eq c s)); ff l.
+          + nodups.
+          + incls.
+          + incls.
         }
-        lia.
-      * elim_all_contras.
-        + left; eapply set_add_intro; ff.
+        destruct (dec_eq v c'); ff.
+        ++ (* v = c' *)
+          exists c'; split; ff.
+          eapply get_one_get_multi'; ff l.
+          + nodups.
+          + incls.
+        ++ (* v <> c' *)
+        exists v.
+        split; ff.
+        eapply IHn.
+        + nodups.
+        + erewrite length_set_add; ff l.
+        + incls.
         + ff.
-          eapply IHn in H1.
-          --  
-            right.
-            exists v.
-            split; ff.
-            eapply set_add_intro; ff.
-          -- erewrite length_set_add; ff.
-            destruct (List.length (all_in_rel E)); ff l.
-      * elim_all_contras.
-        eapply IHn in H1; ff l.
-        erewrite length_set_add; ff.
-        destruct (List.length (all_in_rel E)); ff l.
+        + eapply (get_one_get_multi' (S n0) c' c'' E (set_add dec_eq v (set_add dec_eq c s))); ff l.
+          -- nodups.
+          -- unfold incl; ff.
+            repeat (erewrite length_set_add; ff l).
+          -- incls.
+          -- incls.
+        + nodups.
+        + incls.
+        + incls.
+      * destruct (in_dec dec_eq c'' (get_all_one_step_reverse E c)); ff.
+        right.
+        assert (Hinvs : ~ In v s). {
+          intros HC.
+          eapply (not_in_self _ _ E (set_add dec_eq c s)); ff l.
+          + nodups.
+          + incls.
+          + incls.
+        }
+        assert (Hinv0s : ~ In v0 s'). {
+          intros HC.
+          eapply (not_in_self _ v0 E (set_add dec_eq c' s')); ff l.
+          + nodups.
+          + incls.
+          + incls.
+        }
+        destruct (dec_eq v c'); ff.
+        ++ (* v = c' *)
+          exists c'; split; ff.
+          eapply IHn.
+          + nodups.
+          + erewrite length_set_add; ff l.
+          + incls.
+          + eapply get_one_get_multi'; ff l.
+            -- nodups.
+            -- incls.
+          + ff.
+          + nodups.
+          + incls.
+          + incls.
+        ++ (* v <> c' *)
+        destruct (in_dec dec_eq v s').
+        ---- 
+        exists v.
+        split; ff.
+        eapply IHn.
+        + nodups.
+        + erewrite length_set_add; ff l.
+        + incls.
+        + ff.
+        + 
+          eapply (IHn c' v0 E (set_add dec_eq v (set_add dec_eq c s))); ff l.
+          -- nodups.
+          -- repeat (erewrite length_set_add; ff l).
+          -- incls.
+          -- eapply get_one_get_multi'.
+            +++ nodups.
+            +++ repeat (erewrite length_set_add; ff l).
+            +++ incls.
+            +++ incls.
+            +++ incls.
+          -- nodups.
+          -- incls.
+            (* repeat (erewrite set_add_iff in * ).
+            destruct H3 as [? | [? | ?]].
+            *** admit.
+            *** ff.
+            *** ff. *)
+          -- incls.
+        + nodups.
+        + incls.
+        + incls.
+        ---- (* ~ In v s' *)
+        setoid_rewrite set_add_iff in Hss'E.
+        assert (In c s') by ff.
 
-    induction E; ff.
-    ltac1:(simp get_multi_step_reverse' in *); ff; 
-    erewrite set_in_fold_left_union in *; ff.
-    - destruct H; destruct H0.
-      + right. exists c'. split; auto.
-        ltac1:(simp get_multi_step_reverse' in *); ff.
+        (* destruct (in_dec dec_eq c' (get_all_one_step_reverse E c)).
+        +++
 
+        assert (In c' (get_multi_step_reverse' c E s)) by admit.
+        assert (In c'' (get_multi_step_reverse' c' E (set_add dec_eq c s))) by admit.
+        exists c'.
+        split; ff.
+        +++  *)
 
-  (*
-          rewrite H1 in Heqn3. clear H1.
+        exists v.
+        split; ff.
 
-            --
-            -- destruct (dec_eq c0 c).
-              ++ subst. unfold union in *. simpl in *. admit.
-              ++ admit.
-            -- apply set_In_add_split in s0; destruct s0; ff.
-            -- unfold set_fold_left in *. unfold union in *. erewrite set_in_fold_left_union in *. ff.
-      + admit.
-      + destruct H. right. exists x. split; auto; destruct H; auto.
-        pp (IHE (add c s)).  admit.
-      + admit.
-    - unfold set_fold_left in *.
-      unfold union in *.
-
-      admit.
-    - admit.
-            *)
+        eapply IHn.
+        + nodups.
+        + erewrite length_set_add; ff l.
+        + incls.
+        + ff.
+        + 
+          eapply (IHn c' v0 E (set_add dec_eq c s)); ff l.
+          -- nodups.
+          -- repeat (erewrite length_set_add; ff l).
+          -- incls.
+          -- eapply get_one_get_multi'.
+            ++++ nodups.
+            ++++ repeat (erewrite length_set_add; ff l).
+            ++++ incls.
+            ++++ incls.
+            ++++ incls.
+          -- nodups.
+          -- incls.
+            (* repeat (erewrite set_add_iff in * ).
+            destruct H3 as [? | [? | ?]].
+            *** admit.
+            *** ff.
+            *** ff. *)
+          -- incls.
+        + nodups.
+        + incls.
+          admit.
+        + incls.
   Admitted.
 
 End Sets.
-
-unfold get_multi_step_reverse.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-ltac1:(simp get_multi_step_reverse' in *); ff.
-
-ff.
-
 
 Arguments get_all_one_step_reverse {A} _ _.
 Arguments get_multi_step_reverse {A} _ _.
