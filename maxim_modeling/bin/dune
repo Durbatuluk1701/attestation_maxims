@@ -1,0 +1,4 @@
+(executable
+ (public_name maxim_modeling)
+ (name main)
+ (libraries maxim_modeling))
