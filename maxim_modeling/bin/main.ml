@@ -17,7 +17,7 @@ module type ClosureS = sig
   type t
 
   val one_step_paths : t -> (t * t) list -> t list
-  val multi_step_paths : t -> (t * t) list -> t list list
+  val multi_step_paths : t -> (t * t) list -> [> `Dead of t list | `Good of t list ] list
 end
 
 module Closure (Ord : OrderedType) : ClosureS with type t = Ord.t = struct
@@ -37,30 +37,35 @@ module Closure (Ord : OrderedType) : ClosureS with type t = Ord.t = struct
 
   let multi_step_paths a rela =
     let extend_one_step paths =
-      List.flatten
-      @@ List.map
-           (fun path ->
-              let hd = List.hd path in
-              one_step_paths hd rela
-              |> List.filter_map (fun next ->
-                if List.mem next path then None else Some (next :: path)))
-           paths
+      List.fold_left
+        (fun (dead, good) (`Good path) ->
+           let hd = List.hd path in
+           let one_step = one_step_paths hd rela in
+           List.fold_left
+             (fun (dead, good) next ->
+                if List.mem next path
+                then `Dead (next :: path) :: dead, good
+                else dead, `Good (next :: path) :: good)
+             (dead, good)
+             one_step)
+        ([], [])
+        paths
     in
-    let rec multi_step_paths_set paths : t list list =
+    let rec multi_step_paths_set paths =
       if paths = []
       then []
       else (
-        let all_one_steps = extend_one_step paths in
-        multi_step_paths_set all_one_steps @ all_one_steps)
+        let dead_paths, good_paths = extend_one_step paths in
+        multi_step_paths_set good_paths @ dead_paths @ good_paths)
     in
-    multi_step_paths_set [ [ a ] ]
+    multi_step_paths_set [ `Good [ a ] ]
   ;;
 end
 
 module IntClosure : ClosureS with type t = int = Closure (Int)
 
 let () =
-  let test_rel = [ 1, 2; 1, 6; 2, 3; 3, 4; 4, 5; 5, 6; 6, 4 ] in
+  let test_rel = [ 1, 2; 1, 6; 2, 3; 3, 4; 4, 5; 5, 6; 6, 4; 4, 1 ] in
   let one_step = IntClosure.one_step_paths 1 test_rel in
   printf "%s\n" (String.concat ", " (List.map string_of_int one_step));
   let multi_step = IntClosure.multi_step_paths 1 test_rel in
@@ -70,6 +75,9 @@ let () =
     (String.concat
        ", "
        (List.map
-          (fun path -> String.concat "<-" (List.map string_of_int path))
+          (fun path ->
+             match path with
+             | `Dead p -> "Dead: " ^ String.concat "<-" (List.map string_of_int p) ^ "\n"
+             | `Good p -> "Good: " ^ String.concat "<-" (List.map string_of_int p) ^ "\n")
           multi_step))
 ;;
