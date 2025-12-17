@@ -1,4 +1,6 @@
 (executable
  (public_name maxim_modeling)
  (name main)
+ (flags
+  (:standard -w -32-34-39))
  (libraries maxim_modeling))
