@@ -26,7 +26,6 @@ Proof.
   exact H0.
 Qed.
 
-
 Fixpoint dep_fold_left {A Ac : Type} (l : list A) (f : forall (acc : Ac) (x : A) (Hin : In x l), Ac) (acc : Ac) : Ac :=
   match l as l' return l = l' -> _ with
   | nil => fun _ => acc
@@ -92,24 +91,54 @@ Qed.
 Definition is_cycle {t : Type} (p : list t) : Prop :=
   exists h p1 p2, p = h :: p1 ++ h :: p2.
 
-Inductive path (t : Type) :=
-| Dead : forall (p : list t), is_cycle p -> path t
-| Live : forall (p : list t), NoDup p -> path t.
-Arguments Dead {t} _ _.
-Arguments Live {t} _ _.
+Fixpoint all_in_rel {t : Type} (rela : list (t * t)) :=
+  match rela with
+  | nil => []
+  | (x, y) :: t => 
+    match List.find ()
+    x :: y :: all_in_rel t
+  end.
 
-Definition AllDead (t : Type) := 
-  { l : list (path t) | Forall (fun pt => exists v h, pt = Dead v h) l }.
-Definition AllDeadNil (t : Type) : AllDead t := exist _ nil (Forall_nil _).
-Definition AllLive (t : Type) := 
-  { l : list (path t) | Forall (fun pt => exists v h, pt = Live v h) l }.
-Definition AllLiveNil (t : Type) : AllLive t := exist _ nil (Forall_nil _).
+Inductive path (t : Type) (rel : list (t * t)) :=
+| Dead : forall (p : list t), is_cycle p -> path t rel
+| Live : forall (p : list t), NoDup p -> path t rel.
+Arguments Dead {t rel} _ _.
+Arguments Live {t rel} _ _.
+
+Definition path_length {t rel} (pt : path t rel) : nat :=
+  match pt with
+  | Dead p _ => length p
+  | Live p _ => length p
+  end.
+
+Definition AllDead (t : Type) (rel : list (t * t)) := 
+  { l : list (path t rel) | Forall (fun pt => exists v h, pt = Dead v h) l }.
+Definition AllDead_with_len (t : Type) (rel : list (t * t)) (n : nat) := 
+  { l : list (path t rel) | 
+    Forall (fun pt => exists v h, pt = Dead v h) l /\
+    Forall (fun pt => path_length pt = n) l
+  }.
+Definition AllDeadNil (t : Type) (rel : list (t * t)) : AllDead t rel := exist _ nil (Forall_nil _).
+Definition AllDeadNil_len (t : Type) (rel : list (t * t)) {n} : AllDead_with_len t rel n := 
+  exist _ nil (conj (Forall_nil _) (Forall_nil _)).
+
+Definition AllLive (t : Type) (rel : list (t * t)) := 
+  { l : list (path t rel) | Forall (fun pt => exists v h, pt = Live v h) l }.
+Definition AllLive_with_len (t : Type) (rel : list (t * t)) (n : nat) := 
+  { l : list (path t rel) | 
+    Forall (fun pt => exists v h, pt = Live v h) l /\
+    Forall (fun pt => path_length pt = n) l
+  }.
+Definition AllLiveNil (t : Type) (rel : list (t * t)) : AllLive t rel := exist _ nil (Forall_nil _).
+Definition AllLiveNil_len (t : Type) (rel : list (t * t)) {n} : AllLive_with_len t rel n := 
+  exist _ nil (conj (Forall_nil _) (Forall_nil _)).
 
 Module Type ClosureS.
   Parameter t : Type.
 
-  Parameter one_step_paths : t -> list (t * t) -> path t.
-  Parameter multi_step_paths : t -> list (t * t) -> list t -> list (path t).
+  Parameter one_step_paths : forall (v : t) (rel : list (t * t)), path t rel.
+  Parameter multi_step_paths 
+      : forall (v : t) (rel : list (t * t)) (visited : list t), list (path t rel).
 End ClosureS.
 
 Module Closure (Ord : OrderedType) <: ClosureS with Definition t := Ord.t.
@@ -126,48 +155,107 @@ Module Closure (Ord : OrderedType) <: ClosureS with Definition t := Ord.t.
   Definition one_step_paths a rela := 
     CSet.elements (one_step_paths_set a rela).
 
-  Definition extend_one_step (rela : list (t * t)) (paths : AllLive t)
-      : AllDead t * AllLive t.
-    destruct paths as [paths Hpaths].
-    ref (dep_fold_left paths _ (AllDeadNil t, AllLiveNil t)).
+  Definition extend_one_step (rela : list (t * t)) 
+      {n : nat}
+      (paths :  AllLive_with_len t rela (S n))
+      : (AllDead_with_len t rela (S (S n)) * AllLive_with_len t rela (S (S n))).
+  Proof.
+    destruct paths as [paths [HpathsLive HpathsLen]].
+    ref (dep_fold_left paths _ (AllDeadNil_len t rela, AllLiveNil_len t rela)).
+    clear deadNil liveNil.
+    simpl in *.
     intros [dead live] path Hinpaths.
-    unfold AllLive, AllDead in *.
+    unfold AllLive_with_len, AllDead_with_len in *.
     destruct path.
     - exfalso.
-      erewrite Forall_forall in *.
-      pp (Hpaths _ Hinpaths).
-      ff.
+      erewrite Forall_forall in HpathsLive.
+      pp (HpathsLive _ Hinpaths).
+      repeat break_exists.
+      congruence.
     - destruct p as [| h t'].
       * (* empty path!? - should not happen! *)
-        apply (dead, live).
+        erewrite Forall_forall in *.
+        apply HpathsLen in Hinpaths.
+        simpl in Hinpaths.
+        congruence.
       * set (one_step := one_step_paths h rela).
 
         ref (dep_fold_left one_step _ (dead, live)).
         clear dead live.
         intros [dead live] next Hinnext.
-        destruct (has_cycle next (h :: t') n).
+        destruct (has_cycle next (h :: t') n0).
         + (* next is already in the path, so it forms a cycle *)
-          destruct dead as [deadV deadH].
+          destruct dead as [deadV [deadH1 deadH2]].
           split > [ | apply live].
+          clear live.
           ref (exist _ ((Dead (next :: h :: t') _) :: deadV) _).
-          erewrite Forall_forall.
-          intros.
-          simpl in H.
-          destruct H.
-          -- subst.
-            repeat eexists; eauto.
-            Unshelve.
-            unfold is_cycle.
-            ff.
-          -- erewrite Forall_forall in *.
-            ff.
-        + destruct live as [liveV liveH].
+          split.
+          ++ 
+            erewrite Forall_forall.
+            intros.
+            simpl in *.
+            destruct H.
+            -- subst.
+              repeat eexists; eauto.
+              Unshelve.
+              unfold is_cycle.
+              repeat break_exists.
+              rewrite H.
+              exists next, x, x0.
+              reflexivity.
+            -- erewrite Forall_forall in *.
+              eapply deadH1.
+              assumption.
+          ++ erewrite Forall_forall in *.
+            intros.
+            simpl in H.
+            destruct H.
+            -- subst.
+              simpl.
+              pp (HpathsLen _ Hinpaths).
+              simpl in *.
+              rewrite H.
+              reflexivity.
+            -- eapply deadH2.
+              assumption.
+        + (* it is not a cycle, rather LIVE! *)
+          destruct live as [liveV [liveH1 liveH2]].
+          split > [ apply dead | ].
+          clear dead.
+          ref (exist _ ((Live (next :: h :: t') _) :: liveV) _).
+          split.
+          ++ 
+            erewrite Forall_forall.
+            intros.
+            simpl in *.
+            destruct H.
+            -- subst.
+              repeat eexists; eauto.
+              Unshelve.
+              eauto.
+            -- erewrite Forall_forall in *.
+              eapply liveH1.
+              assumption.
+          ++ erewrite Forall_forall in *.
+            intros.
+            simpl in H.
+            destruct H.
+            -- subst.
+              simpl.
+              pp (HpathsLen _ Hinpaths).
+              simpl in *.
+              rewrite H.
+              reflexivity.
+            -- eapply liveH2.
+              assumption.
+  Qed.
+        (* + destruct live as [liveV liveH].
           split > [ apply dead | ].
           ref (exist _ ((Live (next :: h :: t') _) :: liveV) _).
           ff.
           Unshelve.
           ff.
-  Qed.
+  Qed. *)
           (* erewrite 
 
       ff.
@@ -200,15 +288,10 @@ Module Closure (Ord : OrderedType) <: ClosureS with Definition t := Ord.t.
       paths
       (nil, nil)). *)
 
-  Fixpoint all_in_rel rela :=
-    match rela with
-    | nil => CSet.empty
-    | (x, y) :: t => CSet.add x (CSet.add y (all_in_rel t))
-    end.
-
-  Equations multi_step_paths_set (rela : list (t * t)) (paths : AllLive t)
-    : list (path t)
-    by wf (CSet.cardinal (all_in_rel rela) - length (proj1_sig paths)) :=
+  Equations multi_step_paths_set (rela : list (t * t)) {n} 
+      (paths : AllLive_with_len t rela (S n))
+      : list (path t rela)
+    by wf (S (CSet.cardinal (all_in_rel rela)) - (S n)) :=
     multi_step_paths_set rela paths :=
     match (proj1_sig paths) with
     | nil => nil
@@ -218,6 +301,7 @@ Module Closure (Ord : OrderedType) <: ClosureS with Definition t := Ord.t.
         (proj1_sig dead_paths) ++ (proj1_sig live_paths)
     end.
   Next Obligation.
+    lia.
     admit.
   Admitted.
 
