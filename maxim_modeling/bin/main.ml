@@ -16,12 +16,20 @@ end
 module type ClosureS = sig
   type t
 
+  type patht =
+    | Dead of t list
+    | Live of t list
+
   val one_step_paths : t -> (t * t) list -> t list
-  val multi_step_paths : t -> (t * t) list -> [> `Dead of t list | `Good of t list ] list
+  val multi_step_paths : t -> (t * t) list -> patht list
 end
 
 module Closure (Ord : OrderedType) : ClosureS with type t = Ord.t = struct
   type t = Ord.t
+
+  type patht =
+    | Dead of t list
+    | Live of t list
 
   module CSet = Set.Make (Ord)
 
@@ -33,20 +41,24 @@ module Closure (Ord : OrderedType) : ClosureS with type t = Ord.t = struct
   ;;
 
   let one_step_paths a rela = one_step_paths_set a rela |> CSet.to_list
-  let extend_paths v ps = List.map (fun tl -> v :: tl) ps
 
   let multi_step_paths a rela =
     let extend_one_step paths =
       List.fold_left
-        (fun (dead, good) (`Good path) ->
+        (fun (dead, live) path ->
+           let path =
+             match path with
+             | Live p -> p
+             | Dead p -> p
+           in
            let hd = List.hd path in
            let one_step = one_step_paths hd rela in
            List.fold_left
-             (fun (dead, good) next ->
+             (fun (dead, live) next ->
                 if List.mem next path
-                then `Dead (next :: path) :: dead, good
-                else dead, `Good (next :: path) :: good)
-             (dead, good)
+                then Dead (next :: path) :: dead, live
+                else dead, Live (next :: path) :: live)
+             (dead, live)
              one_step)
         ([], [])
         paths
@@ -55,10 +67,10 @@ module Closure (Ord : OrderedType) : ClosureS with type t = Ord.t = struct
       if paths = []
       then []
       else (
-        let dead_paths, good_paths = extend_one_step paths in
-        multi_step_paths_set good_paths @ dead_paths @ good_paths)
+        let dead_paths, live_paths = extend_one_step paths in
+        multi_step_paths_set live_paths @ dead_paths @ live_paths)
     in
-    multi_step_paths_set [ `Good [ a ] ]
+    multi_step_paths_set [ Live [ a ] ]
   ;;
 end
 
@@ -77,7 +89,8 @@ let () =
        (List.map
           (fun path ->
              match path with
-             | `Dead p -> "Dead: " ^ String.concat "<-" (List.map string_of_int p) ^ "\n"
-             | `Good p -> "Good: " ^ String.concat "<-" (List.map string_of_int p) ^ "\n")
+             | IntClosure.Dead p ->
+               "Dead: " ^ String.concat "<-" (List.map string_of_int p) ^ "\n"
+             | Live p -> "Live: " ^ String.concat "<-" (List.map string_of_int p) ^ "\n")
           multi_step))
 ;;
