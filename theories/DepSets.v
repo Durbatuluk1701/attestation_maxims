@@ -125,21 +125,35 @@ Definition is_cycle {t : Type} (p : list t) : Prop :=
 Module Type ClosureS.
   Parameter t : Type.
 
+  Declare Module OrdS : OrderedTypeWithLeibniz with Definition t := t.
+
+  Declare Module CSet : SWithLeibniz with Module E := OrdS.
+  
+  Parameter all_in_rel : forall (rela : list (t * t)), CSet.t.
+
   Inductive path (rel : list (t * t)) :=
-  | Dead : forall (p : list t), is_cycle p -> path rel
-  | Live : forall (p : list t), NoDup p -> path rel.
+  | Dead : forall (p : list t), 
+    Forall (fun x => InA OrdS.eq x (CSet.elements (all_in_rel rel))) p ->
+    is_cycle p -> 
+    path rel
+  | Live : forall (p : list t), 
+    Forall (fun x => InA OrdS.eq x (CSet.elements (all_in_rel rel))) p ->
+    NoDup p -> 
+    path rel.
   Arguments Dead {rel} _ _.
   Arguments Live {rel} _ _.
 
-  Parameter one_step_paths : forall (v : t) (rel : list (t * t)), path rel.
+  Parameter one_step_paths : t -> list (t * t) -> CSet.t.
   Parameter multi_step_paths 
-      : forall (v : t) (rel : list (t * t)) (visited : list t), list (path rel).
+      : forall (v : t) (rel : list (t * t)), list (path rel).
 End ClosureS.
 
 Module Closure (Ord : OrderedTypeWithLeibniz) <: ClosureS with Definition t := Ord.t.
   Definition t := Ord.t.
 
-  Module CSet := MSetList.Make(Ord).
+  Module OrdS := Ord.
+
+  Module CSet := MSetList.MakeWithLeibniz(Ord).
   Module Import CSetFacts := WFactsOn(Ord)(CSet).
   Module Import CSetPropsOn := WPropertiesOn(Ord)(CSet).
   Module Import CSetDecide := WDecideOn(Ord)(CSet).
@@ -486,3 +500,5 @@ Module Closure (Ord : OrderedTypeWithLeibniz) <: ClosureS with Definition t := O
     econstructor.
   * eapply nil.
   Qed.
+
+End Closure.
